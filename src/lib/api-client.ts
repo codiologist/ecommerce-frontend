@@ -34,8 +34,15 @@ export type RequestOptions = {
   signal?: AbortSignal;
   /** Extra non-2xx statuses whose success envelope should be returned instead of thrown (e.g. 503 health). */
   acceptStatuses?: number[];
+  /**
+   * When false, a failed session refresh does NOT trigger the global auth-failure redirect
+   * (used by useMe() and other calls made on public pages). Default: true.
+   */
+  authRedirect?: boolean;
   /** Internal: prevents refresh loops. */
   skipRefresh?: boolean;
+  /** Internal: prevents CSRF retry loops. */
+  csrfRetried?: boolean;
   /** Next.js fetch cache options for server-side calls. */
   next?: { revalidate?: number | false; tags?: string[] };
   cache?: RequestCache;
@@ -132,6 +139,42 @@ function toApiError(response: Response, body: unknown): ApiError {
   );
 }
 
+async function drainBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // ignore
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CSRF bootstrap (single-flight): GET /auth/csrf sets the csrf_token cookie
+// ---------------------------------------------------------------------------
+const CSRF_PATH = '/auth/csrf';
+let csrfPromise: Promise<void> | undefined;
+
+function fetchCsrfToken(): Promise<void> {
+  csrfPromise ??= fetch(buildUrl(CSRF_PATH), {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  })
+    // Always drain the body: an unread body keeps the connection busy (browsers allow ~6 per host).
+    .then((response) => drainBody(response))
+    .catch(() => undefined)
+    .finally(() => {
+      csrfPromise = undefined;
+    });
+  return csrfPromise;
+}
+
+/** Makes sure a csrf_token cookie exists before a state-changing request (browser only). */
+async function ensureCsrfToken(force = false): Promise<string | undefined> {
+  if (!isBrowser()) return undefined;
+  if (force || !readCookie(CSRF_COOKIE)) await fetchCsrfToken();
+  return readCookie(CSRF_COOKIE);
+}
+
 // ---------------------------------------------------------------------------
 // Single-flight refresh
 // ---------------------------------------------------------------------------
@@ -140,12 +183,13 @@ let refreshPromise: Promise<boolean> | undefined;
 function refreshSession(): Promise<boolean> {
   refreshPromise ??= (async () => {
     try {
-      const csrf = readCookie(CSRF_COOKIE);
+      const csrf = await ensureCsrfToken();
       const response = await fetch(buildUrl(REFRESH_PATH), {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json', ...(csrf ? { [CSRF_HEADER]: csrf } : {}) },
       });
+      await drainBody(response);
       return response.ok;
     } catch {
       return false;
@@ -159,6 +203,7 @@ function refreshSession(): Promise<boolean> {
 /** Test-only: reset module state between tests. */
 export function __resetApiClientState(): void {
   refreshPromise = undefined;
+  csrfPromise = undefined;
   onAuthFailure = undefined;
 }
 
@@ -178,7 +223,7 @@ export async function apiRequest<T>(
     body = JSON.stringify(options.body);
   }
   if (method !== 'GET') {
-    const csrf = readCookie(CSRF_COOKIE);
+    const csrf = await ensureCsrfToken();
     if (csrf) headers[CSRF_HEADER] = csrf;
   }
 
@@ -210,11 +255,27 @@ export async function apiRequest<T>(
 
   if (canRefresh) {
     const refreshed = await refreshSession();
-    if (refreshed) return apiRequest<T>(path, { ...options, skipRefresh: true });
-    onAuthFailure?.();
+    if (refreshed) {
+      await drainBody(response);
+      return apiRequest<T>(path, { ...options, skipRefresh: true });
+    }
+    if (options.authRedirect !== false) onAuthFailure?.();
   }
 
   const parsed = await parseBody(response);
+
+  // Stale/missing CSRF cookie (e.g. rotated in another tab): get a fresh one and retry once.
+  if (
+    response.status === 403 &&
+    method !== 'GET' &&
+    isBrowser() &&
+    !options.csrfRetried &&
+    isErrorEnvelope(parsed) &&
+    parsed.error.code === 'CSRF_TOKEN_INVALID'
+  ) {
+    await ensureCsrfToken(true);
+    return apiRequest<T>(path, { ...options, csrfRetried: true });
+  }
   const accepted = response.ok || (options.acceptStatuses?.includes(response.status) ?? false);
 
   if (accepted && isSuccessEnvelope<T>(parsed)) {

@@ -32,7 +32,8 @@ beforeEach(() => {
   __resetApiClientState();
   fetchMock = vi.fn<typeof fetch>();
   vi.stubGlobal('fetch', fetchMock);
-  document.cookie = 'csrf_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+  // Most tests assume the CSRF cookie already exists; the bootstrap has its own tests below.
+  document.cookie = 'csrf_token=existing-token; path=/';
 });
 
 afterEach(() => {
@@ -219,5 +220,79 @@ describe('401 handling', () => {
       .mockResolvedValueOnce(ok(1));
     await apiClient.get('/users/me');
     expect(callHeaders(1)['X-CSRF-Token']).toBe('tok-9');
+  });
+});
+
+describe('CSRF bootstrap', () => {
+  const clearCsrfCookie = () => {
+    document.cookie = 'csrf_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+  };
+
+  it('fetches /auth/csrf once before the first state-changing request', async () => {
+    clearCsrfCookie();
+    fetchMock.mockImplementation((input) => {
+      if (urlOf(input).endsWith('/auth/csrf')) {
+        document.cookie = 'csrf_token=fresh-token; path=/';
+        return Promise.resolve(ok({ csrfToken: 'fresh-token' }));
+      }
+      return Promise.resolve(ok(null));
+    });
+
+    await Promise.all([apiClient.post('/a', {}), apiClient.post('/b', {})]);
+    const csrfCalls = fetchMock.mock.calls.filter((c) => urlOf(c[0]).endsWith('/auth/csrf'));
+    expect(csrfCalls).toHaveLength(1); // single-flight
+    const post = fetchMock.mock.calls.find((c) => urlOf(c[0]).endsWith('/a'));
+    expect((post?.[1]?.headers as Record<string, string>)['X-CSRF-Token']).toBe('fresh-token');
+  });
+
+  it('does not fetch a CSRF token for GET requests', async () => {
+    clearCsrfCookie();
+    fetchMock.mockResolvedValueOnce(ok(1));
+    await apiClient.get('/health');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes the CSRF token and retries once on CSRF_TOKEN_INVALID', async () => {
+    let posts = 0;
+    fetchMock.mockImplementation((input) => {
+      if (urlOf(input).endsWith('/auth/csrf')) {
+        document.cookie = 'csrf_token=rotated-token; path=/';
+        return Promise.resolve(ok({ csrfToken: 'rotated-token' }));
+      }
+      posts += 1;
+      return Promise.resolve(
+        posts === 1
+          ? json(403, { success: false, error: { code: 'CSRF_TOKEN_INVALID', message: 'x' } })
+          : ok('done'),
+      );
+    });
+
+    await expect(apiClient.post('/cart/items', {})).resolves.toBe('done');
+    const last = fetchMock.mock.calls.at(-1);
+    expect((last?.[1]?.headers as Record<string, string>)['X-CSRF-Token']).toBe('rotated-token');
+  });
+
+  it('gives up after one CSRF retry', async () => {
+    fetchMock.mockImplementation((input) =>
+      Promise.resolve(
+        urlOf(input).endsWith('/auth/csrf')
+          ? ok({})
+          : json(403, { success: false, error: { code: 'CSRF_TOKEN_INVALID', message: 'x' } }),
+      ),
+    );
+    await expect(apiClient.post('/x', {})).rejects.toMatchObject({ code: 'CSRF_TOKEN_INVALID' });
+    expect(fetchMock.mock.calls.filter((c) => !urlOf(c[0]).endsWith('/auth/csrf'))).toHaveLength(2);
+  });
+});
+
+describe('authRedirect: false', () => {
+  it('does not call the auth-failure handler when refresh fails (public pages)', async () => {
+    const onFailure = vi.fn();
+    setAuthFailureHandler(onFailure);
+    fetchMock.mockResolvedValueOnce(unauthorized()).mockResolvedValueOnce(unauthorized());
+    await expect(apiClient.get('/users/me', { authRedirect: false })).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(onFailure).not.toHaveBeenCalled();
   });
 });

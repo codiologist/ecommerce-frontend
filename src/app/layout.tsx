@@ -1,4 +1,7 @@
+import { headers } from 'next/headers';
+
 import { env } from '@/env';
+import { NONCE_HEADER } from '@/lib/csp';
 
 import { Providers } from './providers';
 
@@ -18,11 +21,13 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Per-request CSP nonce from src/proxy.ts, handed to client libraries that inject <style> tags.
+  const nonce = (await headers()).get(NONCE_HEADER) ?? undefined;
   return (
     <html lang="en">
       <body className="min-h-dvh">
-        <Providers>{children}</Providers>
+        <Providers nonce={nonce}>{children}</Providers>
       </body>
     </html>
   );

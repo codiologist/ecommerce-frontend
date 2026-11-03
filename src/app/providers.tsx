@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 
 import { setAuthFailureHandler } from '@/lib/api-client';
+import { NonceProvider } from '@/lib/nonce';
 import { getQueryClient } from '@/lib/query-client';
 
 // Devtools are loaded only in development and never shipped to production (requirements §7).
@@ -14,7 +15,7 @@ const ReactQueryDevtools =
     ? dynamic(() => import('@tanstack/react-query-devtools').then((mod) => mod.ReactQueryDevtools))
     : () => null;
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, nonce }: { children: ReactNode; nonce: string | undefined }) {
   const queryClient = getQueryClient();
   const router = useRouter();
 
@@ -30,9 +31,11 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [queryClient, router]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+    <NonceProvider nonce={nonce}>
+      <QueryClientProvider client={queryClient}>
+        {children}
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
+    </NonceProvider>
   );
 }

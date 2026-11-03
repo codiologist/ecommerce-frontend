@@ -1,15 +1,29 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { buildCsp, generateNonce } from '@/lib/csp';
-
-export const NONCE_HEADER = 'x-nonce';
+import { buildCsp, generateNonce, NONCE_HEADER } from '@/lib/csp';
 
 /**
  * Next.js 16 route proxy (formerly middleware).
- * Phase 0: per-request CSP nonce only. Optimistic auth redirects are added in Phase 1 —
- * they are a UX convenience, never a security boundary (requirements §3).
+ * - Per-request CSP nonce.
+ * - Optimistic auth redirect: protected areas without an access cookie go to /login?next=… .
+ *   This is a UX convenience, never a security boundary - the backend checks every request (§3).
+ *   If the access cookie merely expired (refresh token still valid), the login page refreshes the
+ *   session silently and sends the user straight back.
  */
+const PROTECTED_PREFIXES = ['/account', '/admin'];
+const ACCESS_COOKIES = ['access_token', '__Secure-access_token'];
+
+const isProtected = (pathname: string) =>
+  PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+
 export function proxy(request: NextRequest): NextResponse {
+  const { pathname, search } = request.nextUrl;
+  if (isProtected(pathname) && !ACCESS_COOKIES.some((name) => request.cookies.has(name))) {
+    const login = new URL('/login', request.url);
+    login.searchParams.set('next', `${pathname}${search}`);
+    return NextResponse.redirect(login);
+  }
+
   const nonce = generateNonce();
   const csp = buildCsp({
     nonce,

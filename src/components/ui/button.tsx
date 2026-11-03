@@ -1,4 +1,5 @@
 import { cva, type VariantProps } from 'class-variance-authority';
+import { Slot } from 'radix-ui';
 
 import { cn } from '@/lib/utils';
 
@@ -29,17 +30,16 @@ const buttonVariants = cva(
   },
 );
 
-export type ButtonProps = React.ComponentProps<'button'> & VariantProps<typeof buttonVariants>;
+export type ButtonProps = React.ComponentProps<'button'> &
+  VariantProps<typeof buttonVariants> & {
+    /** Render the child element (e.g. a Next.js <Link>) with button styles. */
+    asChild?: boolean;
+  };
 
-function Button({ className, variant, size, type = 'button', ...props }: ButtonProps) {
-  return (
-    <button
-      type={type}
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  );
+function Button({ className, variant, size, asChild = false, type, ...props }: ButtonProps) {
+  const classes = cn(buttonVariants({ variant, size, className }));
+  if (asChild) return <Slot.Root data-slot="button" className={classes} {...props} />;
+  return <button type={type ?? 'button'} data-slot="button" className={classes} {...props} />;
 }
 
 export { Button, buttonVariants };

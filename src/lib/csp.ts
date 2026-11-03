@@ -1,3 +1,6 @@
+/** Request header carrying the per-request nonce from the proxy to server components. */
+export const NONCE_HEADER = 'x-nonce';
+
 export type CspOptions = {
   nonce: string;
   apiOrigin: string;
@@ -8,8 +11,10 @@ export type CspOptions = {
 
 /**
  * Strict, nonce-based Content-Security-Policy (requirements §4.3).
- * Third-party origins (Turnstile, payment gateways, image CDN) are added in the phase that needs them.
+ * Third-party origins (payment gateways, image CDN) are added in the phase that needs them.
  */
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
+
 export function buildCsp({ nonce, apiOrigin, isDev, upgradeInsecure }: CspOptions): string {
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
@@ -17,6 +22,8 @@ export function buildCsp({ nonce, apiOrigin, isDev, upgradeInsecure }: CspOption
       "'self'",
       `'nonce-${nonce}'`,
       "'strict-dynamic'",
+      // Ignored by browsers that support 'strict-dynamic'; fallback for older ones (Turnstile, §3).
+      TURNSTILE_ORIGIN,
       ...(isDev ? ["'unsafe-eval'"] : []),
     ],
     // Dev needs inline styles for HMR; production uses the nonce.
@@ -28,7 +35,7 @@ export function buildCsp({ nonce, apiOrigin, isDev, upgradeInsecure }: CspOption
     'base-uri': ["'self'"],
     'form-action': ["'self'"],
     'frame-ancestors': ["'none'"],
-    'frame-src': ["'none'"],
+    'frame-src': [TURNSTILE_ORIGIN],
     'worker-src': ["'self'", 'blob:'],
     'manifest-src': ["'self'"],
   };

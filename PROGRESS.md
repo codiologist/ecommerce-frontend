@@ -3,7 +3,7 @@
 | Phase               | Status               |
 | ------------------- | -------------------- |
 | 0. Setup (frontend) | ✅ Done (2026-11-03) |
-| 1. Auth & Users     | ⏳ Not started       |
+| 1. Auth & Users     | ✅ Done (2026-11-04) |
 | 2–10                | ⏳ Not started       |
 
 Backend status lives in `ecommerce-backend/PROGRESS.md`.
@@ -104,10 +104,97 @@ Backend status lives in `ecommerce-backend/PROGRESS.md`.
 
 ### Pending / not done on purpose (later phases)
 
+(Phase 1 items from this list are now done; see the Phase 1 section.)
+
 - Auth pages, `useMe()`, protected routes and optimistic redirects in `proxy.ts`, Turnstile (Phase 1)
 - Zustand stores (`src/stores/` is empty until the first UI state, e.g. the cart drawer)
 - Storefront and admin layouts, SEO metadata, sitemap and robots (Phases 2–3)
-- Add the GitHub remote and push; set up Dependabot/Renovate
+- [x] GitHub remote: https://github.com/codiologist/ecommerce-frontend
+- [ ] Set up Dependabot/Renovate in the GitHub repo settings
+
+---
+
+## Phase 1 — Auth & Users (frontend)
+
+### Built
+
+- **Pages:**
+  - `(auth)`, all noindex: `/login` (credentials → CAPTCHA when the backend asks for it → 2FA code or
+    backup-code step), `/register`, `/verify-email` (explicit click, so email link-scanners can't burn the
+    single-use token), `/forgot-password`, `/reset-password`
+  - `(account)`, guarded: `/account` (profile, email-verified badge, resend verification) and
+    `/account/security` (change password, 2FA setup with QR and one-time backup codes, 2FA disable behind
+    a reauth dialog, active sessions with per-device sign-out, log out of all devices)
+  - `/admin`, guarded: login → staff role → 2FA set up (otherwise forced `/admin/setup-2fa`) → session
+    2FA-verified. Customers see "Access denied". The dashboard itself is a placeholder until Phase 8.
+  - The `(shop)` header has an account menu (log in / register, or the user menu with an admin link for
+    staff).
+- **Data (§7):**
+  - `features/auth/{api,queries,mutations,schemas,types}.ts`, plus `authKeys` / `adminKeys` in
+    `query-keys.ts`.
+  - `useMe()` returns `null` when logged out and never redirects, so it's safe on public pages. Auth state
+    lives only in the query cache.
+  - Login and 2FA completion clear the cache and seed `me`; logout, logout-all and password reset clear
+    it. Other mutations invalidate exactly the keys they affect (sessions, me, admin session).
+  - Forms use react-hook-form + Zod for client-side feedback; backend errors (`body.<field>`) are mapped
+    onto the matching fields (`lib/form-errors.ts`), and raw 5xx messages are never shown.
+- **api-client additions:**
+  - CSRF bootstrap: a single-flight `GET /auth/csrf` before the first non-GET request when there's no
+    cookie, and one retry on `CSRF_TOKEN_INVALID`.
+  - `authRedirect: false` for calls made from public pages.
+  - Response bodies are always drained. This was a **bug found by E2E**: unread bodies on the CSRF and
+    refresh calls held connections open, and browsers allow about 6 per host.
+- **`proxy.ts`:** optimistic redirect from `/account*` and `/admin*` to `/login?next=…` when there's no
+  access cookie. The login page silently refreshes an expired-access-token session and returns the user.
+  `safeNextPath()` blocks open redirects (`//x`, `/\x`, schemes, control characters, encoded variants,
+  auth pages).
+- **CSP kept strict:**
+  - The root layout reads the per-request nonce and `NonceProvider` passes it to Radix's style injection
+    (`get-nonce`), input-otp and the Turnstile script.
+  - `frame-src` and `script-src` allow `https://challenges.cloudflare.com`.
+  - E2E asserts zero CSP violations across the auth flow, including the QR and OTP screens.
+- **Turnstile:** `@marsidev/react-turnstile`, shown on register and after `CAPTCHA_REQUIRED` on login, and
+  re-mounted after each attempt (tokens are single-use). With no site key (local dev) it shows "CAPTCHA
+  disabled" and sends a placeholder, which the backend accepts only when it also has no secret.
+- **Accessibility:** labelled inputs, `aria-invalid` and `aria-describedby` on errors, `role="alert"` and
+  `role="status"` messages, `aria-current` in navigation, a single h1 per page.
+- **Tests:**
+  - Vitest, 76: api-client (+CSRF bootstrap, single-flight, retry, `authRedirect`), safe redirects, error
+    mapping, login form (validation, success, wrong credentials, CAPTCHA escalation, 2FA, backup code,
+    expired challenge), register (server policy errors, generic result), account menu (logged out without
+    redirect; admin link only for staff), sessions list (current device, revoke, logout-all), 2FA section
+    (backup codes survive the `me` refetch; staff can't disable; reauth before disabling), proxy redirects
+    and CSP.
+  - Mutation-checked: removing the backup-code fix fails the tests.
+  - Playwright, 4: smoke ×2, the full auth flow, and customer → admin "Access denied".
+
+### Decisions / deviations (please review)
+
+1. **`@hookform/resolvers` 5.9.2, not 7.0.2:** the 7.x line was 3 days old with 3 patches already.
+   5.9.2 supports Zod 4.
+2. **shadcn CLI output corrected:**
+   - It installed shadcn's new `cn` package (pre-1.0, updated the day before) and pointed components at
+     it; they now use our existing `@/lib/utils`.
+   - It added `next-themes` with a `^` range, which was removed.
+   - **sonner was dropped**: it injects a `<style>` tag without a nonce, which the production CSP blocks.
+     Inline form messages are used instead.
+3. **`Button` gained `asChild`** (Radix Slot), so links can be styled as buttons.
+4. **Optimistic proxy redirect uses only the access cookie.** The refresh cookie is path-scoped to
+   `/api/v1/auth` and invisible to Next. After 15+ minutes idle a protected-page visit briefly bounces via
+   `/login`, which refreshes and returns the user. A non-secret "session hint" cookie from the backend
+   would avoid the bounce; it wasn't added, to keep the backend unchanged.
+5. **Auth E2E needs a disposable backend:** `E2E_API_URL=http://localhost:4100/api/v1 npm run test:e2e`.
+   Without it (e.g. in CI) that spec is skipped. Locally it ran against a backend on port 4100 using the
+   Docker database `ecommerce_e2e`, never Supabase.
+6. React 19.3 deprecates `FormEvent`; `SubmitEvent<HTMLFormElement>` is used.
+
+### Pending
+
+- [ ] Admin 2FA E2E (needs a way to create a staff user in the E2E backend, e.g. a test-only seed).
+- [ ] Production: set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (and the backend secret).
+- [ ] Backend follow-up, not done because it's backend Phase 0 code: the health check's 2s DB timeout is
+      shorter than a cold Supabase connection from this region (~2.7s), so `/health` can briefly report
+      `degraded` after idle.
 
 ### Scripts
 

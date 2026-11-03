@@ -59,3 +59,41 @@ describe('proxy', () => {
     expect(first.headers.get('x-middleware-request-x-nonce')).toBeTruthy();
   });
 });
+
+describe('proxy optimistic auth redirects', () => {
+  it.each(['/account', '/account/security', '/admin', '/admin/setup-2fa'])(
+    'redirects %s to /login when there is no access cookie',
+    (path) => {
+      const res = proxy(new NextRequest(`http://localhost:3000${path}?tab=1`));
+      expect(res.status).toBe(307);
+      const location = new URL(res.headers.get('location') ?? '');
+      expect(location.pathname).toBe('/login');
+      expect(location.searchParams.get('next')).toBe(`${path}?tab=1`);
+    },
+  );
+
+  it('lets requests with an access cookie through', () => {
+    const req = new NextRequest('http://localhost:3000/account', {
+      headers: { cookie: 'access_token=abc' },
+    });
+    const res = proxy(req);
+    expect(res.headers.get('location')).toBeNull();
+    expect(res.headers.get('content-security-policy')).toContain('nonce-');
+  });
+
+  it('does not redirect public pages', () => {
+    for (const path of ['/', '/login', '/accounting-terms']) {
+      expect(
+        proxy(new NextRequest(`http://localhost:3000${path}`)).headers.get('location'),
+      ).toBeNull();
+    }
+  });
+
+  it('allows Turnstile frames and scripts in the CSP', () => {
+    const csp =
+      proxy(new NextRequest('http://localhost:3000/login')).headers.get(
+        'content-security-policy',
+      ) ?? '';
+    expect(csp).toContain('frame-src https://challenges.cloudflare.com');
+  });
+});
