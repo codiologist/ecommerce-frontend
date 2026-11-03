@@ -52,6 +52,8 @@ test('register → login → account → security → logout', async ({ page }) 
   // 2FA setup renders the QR + OTP input (exercises nonce'd <style> injection under the CSP)
   await page.getByRole('button', { name: 'Set up two-factor authentication' }).click();
   await expect(page.getByAltText(/QR code/)).toBeVisible();
+  await page.getByRole('button', { name: /Can.t scan\? Enter this key instead/ }).click();
+  await expect(page.getByTestId('totp-secret')).toBeVisible();
 
   // Profile
   await page.getByRole('link', { name: 'Profile' }).click();

@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { FormAlert } from '@/components/shared/form-alert';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { errorMessage } from '@/lib/form-errors';
 
 import { useVerifyEmail } from '../mutations';
@@ -41,6 +42,7 @@ export function VerifyEmailCard({ token }: { token: string | null }) {
         }}
         disabled={verify.isPending}
       >
+        {verify.isPending ? <Spinner aria-hidden="true" /> : null}
         {verify.isPending ? 'Verifying…' : 'Verify my email'}
       </Button>
     </div>

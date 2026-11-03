@@ -8,6 +8,7 @@ import { FormAlert } from '@/components/shared/form-alert';
 import { FormField } from '@/components/shared/form-field';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { useResendVerification, useUpdateProfile } from '@/features/auth/mutations';
 import { profileSchema, type ProfileValues } from '@/features/auth/schemas';
 import type { User } from '@/features/auth/types';
@@ -64,6 +65,7 @@ export function ProfileForm({ user }: { user: User }) {
                     resend.mutate(user.email);
                   }}
                 >
+                  {resend.isPending ? <Spinner aria-hidden="true" /> : null}
                   {resend.isPending ? 'Sending…' : 'Resend verification email'}
                 </Button>
               </div>
@@ -94,6 +96,7 @@ export function ProfileForm({ user }: { user: User }) {
         />
         <div>
           <Button type="submit" disabled={isSubmitting || !isDirty}>
+            {isSubmitting ? <Spinner aria-hidden="true" /> : null}
             {isSubmitting ? 'Saving…' : 'Save changes'}
           </Button>
         </div>

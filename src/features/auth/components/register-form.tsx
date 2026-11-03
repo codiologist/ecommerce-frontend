@@ -1,12 +1,15 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { MailCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { FormAlert } from '@/components/shared/form-alert';
 import { FormField } from '@/components/shared/form-field';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { applyServerErrors } from '@/lib/form-errors';
 
 import { useRegister } from '../mutations';
@@ -44,12 +47,15 @@ export function RegisterForm() {
 
   if (done) {
     return (
-      <div className="grid gap-3" role="status">
-        <h2 className="text-lg font-semibold">Check your email</h2>
-        <p className="text-muted-foreground text-sm">
+      <Alert role="status">
+        <MailCheck aria-hidden="true" />
+        <AlertTitle>
+          <h2>Check your email</h2>
+        </AlertTitle>
+        <AlertDescription>
           {done} If you don&apos;t see it, check your spam folder.
-        </p>
-      </div>
+        </AlertDescription>
+      </Alert>
     );
   }
 
@@ -91,6 +97,7 @@ export function RegisterForm() {
       />
       <TurnstileWidget key={captchaKey} onToken={setCaptchaToken} />
       <Button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? <Spinner aria-hidden="true" /> : null}
         {isSubmitting ? 'Creating account…' : 'Create account'}
       </Button>
     </form>

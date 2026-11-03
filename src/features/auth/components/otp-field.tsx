@@ -1,7 +1,7 @@
 'use client';
 
+import { Field, FieldLabel } from '@/components/ui/field';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { Label } from '@/components/ui/label';
 
 export function OtpField({
   id,
@@ -17,8 +17,8 @@ export function OtpField({
   autoFocus?: boolean;
 }) {
   return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>{label}</Label>
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <InputOTP
         id={id}
         maxLength={6}
@@ -35,6 +35,6 @@ export function OtpField({
           ))}
         </InputOTPGroup>
       </InputOTP>
-    </div>
+    </Field>
   );
 }

@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { FormAlert } from '@/components/shared/form-alert';
 import { FormField } from '@/components/shared/form-field';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { applyServerErrors } from '@/lib/form-errors';
 
 import { useResetPassword } from '../mutations';
@@ -72,6 +73,7 @@ export function ResetPasswordForm({ token }: { token: string | null }) {
         {...form.register('confirmPassword')}
       />
       <Button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? <Spinner aria-hidden="true" /> : null}
         {isSubmitting ? 'Saving…' : 'Set new password'}
       </Button>
       <p className="text-muted-foreground text-xs">You&apos;ll be signed out on all devices.</p>

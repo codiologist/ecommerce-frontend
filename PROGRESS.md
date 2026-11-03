@@ -199,3 +199,34 @@ Backend status lives in `ecommerce-backend/PROGRESS.md`.
 ### Scripts
 
 `dev`, `build`, `start`, `typecheck`, `lint`, `format`, `format:check`, `test`, `test:e2e`, `audit:ci`.
+
+---
+
+## UI convention: shadcn/ui everywhere (2026-11-04, requested)
+
+**Rule for all phases:** build UI from shadcn/ui components (`src/components/ui`, added with
+`npx shadcn@4.23.0 add <name>`). Don't hand-roll inputs, checkboxes, toggles, lists or loaders when a
+shadcn component exists.
+
+- Components now in use: alert, badge, button (+`asChild`), card, checkbox, collapsible, dialog,
+  dropdown-menu, **field** (Field / FieldLabel / FieldDescription / FieldError), input, input-otp,
+  **item** (sessions list), label, separator, **skeleton**, **spinner**.
+- Migrated in this change:
+  - `FormField` → shadcn `Field` (same props, so no form changes)
+  - OTP field → `Field`
+  - "I saved my codes" checkbox → `Checkbox` in a horizontal `Field`
+  - "Can't scan?" `<details>` → `Collapsible`
+  - loading states → `Spinner` / `Skeleton`
+  - sessions list → `ItemGroup` / `Item`
+  - API status pill → `Badge`
+  - account navigation → ghost/secondary `Button asChild`
+  - register success → `Alert`
+  - `global-error` → `Card` + `Button` (imports `globals.css`, since it replaces the root layout)
+  - pending buttons show a `Spinner`
+- **After every `shadcn add`**, check for the same two CLI side effects as before:
+  1. it adds the `cn` npm package and imports from `"cn"` → switch to `@/lib/utils` and uninstall it;
+  2. any new dependency must be exact-pinned.
+- **Not used: `sonner` (toasts).** It injects a `<style>` tag without a nonce, which the production CSP
+  blocks. Feedback stays inline (`Alert`). Revisit if sonner adds nonce support.
+- Checks: 76 unit tests, 4 Playwright E2E (real backend) with **zero CSP violations**, including the
+  checkbox, collapsible and item list.

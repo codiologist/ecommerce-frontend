@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Spinner } from '@/components/ui/spinner';
 import { OtpField } from '@/features/auth/components/otp-field';
 import { useReauth } from '@/features/auth/mutations';
 import { errorMessage } from '@/lib/form-errors';
@@ -90,6 +91,7 @@ export function ReauthDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={reauth.isPending}>
+              {reauth.isPending ? <Spinner aria-hidden="true" /> : null}
               {reauth.isPending ? 'Checking…' : 'Confirm'}
             </Button>
           </DialogFooter>

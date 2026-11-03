@@ -1,9 +1,14 @@
 'use client';
 
+import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 import { FormAlert } from '@/components/shared/form-alert';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Spinner } from '@/components/ui/spinner';
 import { errorMessage } from '@/lib/form-errors';
 
 import { useEnableTwoFactor, useSetupTwoFactor } from '../mutations';
@@ -49,16 +54,18 @@ export function TwoFactorSetup({
             ))}
           </ul>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+        <Field orientation="horizontal">
+          <Checkbox
+            id="backup-codes-saved"
             checked={acknowledged}
-            onChange={(e) => {
-              setAcknowledged(e.target.checked);
+            onCheckedChange={(checked) => {
+              setAcknowledged(checked === true);
             }}
           />
-          I have saved these codes somewhere safe
-        </label>
+          <FieldLabel htmlFor="backup-codes-saved" className="font-normal">
+            I have saved these codes somewhere safe
+          </FieldLabel>
+        </Field>
         <div>
           <Button disabled={!acknowledged} onClick={onDone}>
             Done
@@ -83,6 +90,7 @@ export function TwoFactorSetup({
             }}
             disabled={setup.isPending}
           >
+            {setup.isPending ? <Spinner aria-hidden="true" /> : null}
             {setup.isPending ? 'Preparing…' : 'Set up two-factor authentication'}
           </Button>
         </div>
@@ -126,16 +134,30 @@ export function TwoFactorSetup({
         height={192}
         className="rounded-md border bg-white p-2"
       />
-      <details className="text-sm">
-        <summary className="cursor-pointer">Can&apos;t scan? Enter this key instead</summary>
-        <code className="bg-muted mt-2 block rounded p-2 break-all" data-testid="totp-secret">
-          {setup.data.secret}
-        </code>
-      </details>
+      <Collapsible>
+        <CollapsibleTrigger asChild>
+          <Button type="button" variant="link" className="group h-auto p-0">
+            Can&apos;t scan? Enter this key instead
+            <ChevronDown
+              aria-hidden="true"
+              className="transition-transform group-data-[state=open]:rotate-180"
+            />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <code
+            className="bg-muted mt-2 block rounded p-2 text-sm break-all"
+            data-testid="totp-secret"
+          >
+            {setup.data.secret}
+          </code>
+        </CollapsibleContent>
+      </Collapsible>
       <FormAlert message={codeError} />
       <OtpField id="setup-code" value={code} onChange={setCode} autoFocus />
       <div>
         <Button type="submit" disabled={enable.isPending}>
+          {enable.isPending ? <Spinner aria-hidden="true" /> : null}
           {enable.isPending ? 'Verifying…' : 'Turn on two-factor authentication'}
         </Button>
       </div>

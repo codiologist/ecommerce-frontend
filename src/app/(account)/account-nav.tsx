@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const links = [
   { href: '/account', label: 'Profile' },
@@ -13,20 +13,22 @@ const links = [
 export function AccountNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Account sections" className="flex gap-2 md:flex-col">
-      {links.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          aria-current={pathname === link.href ? 'page' : undefined}
-          className={cn(
-            'hover:bg-accent rounded-md px-3 py-2 text-sm',
-            pathname === link.href && 'bg-accent font-medium',
-          )}
-        >
-          {link.label}
-        </Link>
-      ))}
+    <nav aria-label="Account sections" className="flex gap-1 md:flex-col">
+      {links.map((link) => {
+        const active = pathname === link.href;
+        return (
+          <Button
+            key={link.href}
+            asChild
+            variant={active ? 'secondary' : 'ghost'}
+            className="justify-start"
+          >
+            <Link href={link.href} aria-current={active ? 'page' : undefined}>
+              {link.label}
+            </Link>
+          </Button>
+        );
+      })}
     </nav>
   );
 }

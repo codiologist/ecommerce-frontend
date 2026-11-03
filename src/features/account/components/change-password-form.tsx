@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { FormAlert } from '@/components/shared/form-alert';
 import { FormField } from '@/components/shared/form-field';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { useChangePassword } from '@/features/auth/mutations';
 import { changePasswordSchema, type ChangePasswordValues } from '@/features/auth/schemas';
 import { isApiError } from '@/lib/api-error';
@@ -65,6 +66,7 @@ export function ChangePasswordForm() {
       />
       <div>
         <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? <Spinner aria-hidden="true" /> : null}
           {isSubmitting ? 'Saving…' : 'Change password'}
         </Button>
       </div>

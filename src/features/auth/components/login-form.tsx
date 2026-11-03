@@ -8,8 +8,7 @@ import { useForm } from 'react-hook-form';
 import { FormAlert } from '@/components/shared/form-alert';
 import { FormField } from '@/components/shared/form-field';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import { isApiError } from '@/lib/api-error';
 import { errorMessage } from '@/lib/form-errors';
 
@@ -118,6 +117,7 @@ function CredentialsStep({
       </div>
       {captchaRequired ? <TurnstileWidget key={captchaKey} onToken={setCaptchaToken} /> : null}
       <Button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? <Spinner aria-hidden="true" /> : null}
         {isSubmitting ? 'Logging in…' : 'Log in'}
       </Button>
     </form>
@@ -183,23 +183,22 @@ function TwoFactorStep({
       </p>
       <FormAlert message={error} />
       {useBackupCode ? (
-        <div className="grid gap-2">
-          <Label htmlFor="backup-code">Backup code</Label>
-          <Input
-            id="backup-code"
-            className="font-mono"
-            autoComplete="one-time-code"
-            autoFocus
-            value={code}
-            onChange={(e) => {
-              setCode(e.target.value);
-            }}
-          />
-        </div>
+        <FormField
+          id="backup-code"
+          label="Backup code"
+          className="font-mono"
+          autoComplete="one-time-code"
+          autoFocus
+          value={code}
+          onChange={(e) => {
+            setCode(e.target.value);
+          }}
+        />
       ) : (
         <OtpField id="totp-code" value={code} onChange={setCode} autoFocus />
       )}
       <Button type="submit" disabled={loginTwoFactor.isPending}>
+        {loginTwoFactor.isPending ? <Spinner aria-hidden="true" /> : null}
         {loginTwoFactor.isPending ? 'Verifying…' : 'Verify'}
       </Button>
       <Button

@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { useLogout } from '../mutations';
 import { useMe } from '../queries';
@@ -23,7 +24,7 @@ export function AccountMenu() {
   const logout = useLogout();
   const router = useRouter();
 
-  if (me.isPending) return <span className="h-8 w-20" aria-hidden="true" />;
+  if (me.isPending) return <Skeleton className="h-8 w-28" aria-hidden="true" />;
 
   if (!me.data) {
     return (
